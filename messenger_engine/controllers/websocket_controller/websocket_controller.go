@@ -1,42 +1,53 @@
 package websocketcontroller
 
 import (
-	"fmt"
+	"log"
+	"sync"
 
 	Messages "messenger_engine/models/message"
 
 	"github.com/gorilla/websocket"
 )
 
-// ----------------------------------------------------------------------
-// WebSocket Broadcaster
-// ----------------------------------------------------------------------
+type WebsocketRepository interface {
+	HandleMessages()
+}
 
 // MessageBroadcaster manages WebSocket clients and message broadcasting.
 type MessageBroadcaster struct {
-	Clients          map[*websocket.Conn]bool
-	Broadcast        chan Messages.FinalMessage
-	RepliesBroadcast chan Messages.FinalMessageReply
+	mu              sync.RWMutex
+	clients         map[*websocket.Conn]bool
+	broadcast       chan Messages.FinalMessage
+	repliesBroadcast chan Messages.FinalMessageReply
 }
 
-// NewMessageBroadcaster initializes and returns a new MessageBroadcaster.
-func NewMessageBroadcaster() *MessageBroadcaster {
-	return &MessageBroadcaster{
-		Clients:          make(map[*websocket.Conn]bool),
-		Broadcast:        make(chan Messages.FinalMessage),
-		RepliesBroadcast: make(chan Messages.FinalMessageReply),
-	}
+// AddClient registers a new WebSocket connection.
+func (mb *MessageBroadcaster) AddClient(client *websocket.Conn) {
+	mb.mu.Lock()
+	defer mb.mu.Unlock()
+	mb.clients[client] = true
 }
 
-// HandleMessages continuously reads messages from the broadcast channel and sends them to connected clients.
+// RemoveClient safely removes a client from the pool.
+func (mb *MessageBroadcaster) RemoveClient(client *websocket.Conn) {
+	mb.mu.Lock()
+	defer mb.mu.Unlock()
+	client.Close()
+	delete(mb.clients, client)
+}
+
+// HandleMessages listens for messages and broadcasts them to all clients.
 func (mb *MessageBroadcaster) HandleMessages() {
-	for msg := range mb.Broadcast {
-		for client := range mb.Clients {
+	for msg := range mb.broadcast {
+		mb.mu.RLock()
+		for client := range mb.clients {
 			if err := client.WriteJSON(msg); err != nil {
-				fmt.Printf("Error sending message: %v\n", err)
-				client.Close()
-				delete(mb.Clients, client)
+				log.Printf("Error sending message: %v", err)
+				mb.mu.RUnlock()
+				mb.RemoveClient(client)
+				mb.mu.RLock()
 			}
 		}
+		mb.mu.RUnlock()
 	}
 }

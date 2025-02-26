@@ -1,6 +1,8 @@
 package postmessengercontroller
 
 import (
+	"context"
+
 	BaseController "messenger_engine/controllers/base_controller"
 	Messages "messenger_engine/models/message"
 	MessageControl "messenger_engine/controllers/message_controller"
@@ -13,16 +15,16 @@ type MessageController struct {
 }
 
 // SaveMessage saves a new message using the repository.
-func (mc *MessageController) SaveMessage(msg Messages.Message) error {
-	return mc.Repo.SaveMessage(msg)
+func (mc *MessageController) SaveMessage(ctx context.Context, msg Messages.Message) error {
+	return mc.Repo.SaveMessage(ctx, msg)
 }
 
 // SaveMessageReply saves a reply message using the repository.
-func (mc *MessageController) SaveMessageReply(msg Messages.MessageReply) error {
-	return mc.Repo.SaveMessageReply(msg)
+func (mc *MessageController) SaveMessageReply(ctx context.Context, msg Messages.MessageReply) error {
+	return mc.Repo.SaveMessageReply(ctx, msg)
 }
 
 // LoadMessages retrieves all messages for a specific chat.
-func (mc *MessageController) LoadMessages(chatID int) ([]Messages.Message, error) {
-	return mc.Repo.LoadMessages(chatID)
+func (mc *MessageController) LoadMessages(ctx context.Context, chatID int) ([]Messages.Message, error) {
+	return mc.Repo.LoadMessages(ctx, chatID)
 }

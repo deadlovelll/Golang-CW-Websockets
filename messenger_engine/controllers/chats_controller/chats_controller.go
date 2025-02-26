@@ -2,19 +2,25 @@ package chatscontroller
 
 import (
 	"fmt"
+	"context"
+	"json"
 
 	BaseController "messenger_engine/controllers/base_controller"
 )
 
+type ChatsRepository interface {
+	GetUserChats(ctx context.Context, userID int)
+}
+
 // GetMessengerController handles fetching user messages
-type GetMessengerController struct {
+type ChatController struct {
 	*BaseController.BaseController
 	Repo               MessengerRepository
 	PresignedURLClient *PresignedURLService
 }
 
 // GetUserChats retrieves the latest user chats
-func (gmc *GetMessengerController) GetUserChats(ctx context.Context, userID int) ([]byte, error) {
+func (gmc *ChatController) GetUserChats(ctx context.Context, userID int) ([]byte, error) {
 	messages, err := gmc.Repo.GetUserChats(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("database error: %w", err)

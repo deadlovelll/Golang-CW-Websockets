@@ -212,8 +212,6 @@ func (cmh *ChatMessageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 				ParentMessageId: int(parentMessageIdFloat),
 			}
 
-			fmt.Println(msgData)
-
 			err = cmh.MMC.SaveMessageReply(msgData)
 			if err != nil {
 				fmt.Printf("Error saving message to database: %s", err)

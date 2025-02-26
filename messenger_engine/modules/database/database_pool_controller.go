@@ -43,6 +43,6 @@ func (dp *DatabasePoolController) ShutdownEvent() {
 
 	if dp.Db != nil {
 		fmt.Println("Shutdown made successfully")
-		dp.Db.CloseAll() // Предполагается, что CloseAll() закрывает все соединения
+		dp.Db.CloseAll()
 	}
 }

@@ -1,5 +1,3 @@
-package getmessengercontroller
-
 import (
 	"context"
 	"encoding/json"

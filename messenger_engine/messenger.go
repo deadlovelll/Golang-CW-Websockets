@@ -12,20 +12,18 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	basecontroller "messenger_engine/modules/base_controller"
+	BaseController "messenger_engine/controllers/base_controller"
 
-	getdatabasecontroller "messenger_engine/get_messenger_controller"
-
-	postmessengercontroller "messenger_engine/post_messenger_controller"
+	MessageController "messenger_engine/controllers/message_controller"
 )
 
 type ChatsHandler struct {
 	upgrader websocket.Upgrader
-	GMContrl *getdatabasecontroller.GetMessengerController
+	GMContrl *MessageController.MessageRepository
 }
 type ChatMessageHandler struct {
 	upgrader websocket.Upgrader
-	MMC      *postmessengercontroller.MakeMessagesController
+	MMC      *MessageController.MessageRepository
 }
 type ChatsMessage struct {
 	UserID int `json:"user_id"`

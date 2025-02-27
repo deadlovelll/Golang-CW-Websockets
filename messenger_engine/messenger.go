@@ -1,9 +1,9 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"messenger_engine/modules/database"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,269 +12,135 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"messenger_engine/modules/database"
 	BaseController "messenger_engine/controllers/base_controller"
-
-	MessageController "messenger_engine/controllers/message_controller"
+	WebSocketController "messenger_engine/controllers/websocket_controller"
+	MessageCtrl "messenger_engine/controllers/message_controller"
+	MessageTypeController "messenger_engine/controllers/message_type_controller"
 )
 
-type ChatsHandler struct {
-	upgrader websocket.Upgrader
-	GMContrl *MessageController.MessageRepository
-}
-type ChatMessageHandler struct {
-	upgrader websocket.Upgrader
-	MMC      *MessageController.MessageRepository
-}
-type ChatsMessage struct {
-	UserID int `json:"user_id"`
+// MainMessageController combines processing of various WebSocket message types.
+type MainMessageController struct {
+	upgrader              websocket.Upgrader
+	WsController          WebSocketController.WebsocketRepository
+	MessageTypeController MessageTypeController.MessageTypeRepository
+	Repo                  MessageCtrl.MessageRepository
 }
 
-func (wsh *ChatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	wsh.upgrader.CheckOrigin = func(r *http.Request) bool {
-		return true
-	}
+// ServeHTTP upgrades the HTTP connection to a WebSocket, registers the client, and handles incoming messages.
+func (mc *MainMessageController) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Allow all origins (for development; restrict in production)
+	mc.upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	c, err := wsh.upgrader.Upgrade(w, r, nil)
+	ws, err := mc.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("error %s when upgrading connection to websocket", err)
-		return
-	}
-
-	for {
-
-		messageType, message, err := c.ReadMessage()
-
-		if err != nil {
-			fmt.Printf("Error reading message %s", err)
-			break
-		}
-
-		var msg ChatsMessage
-		err = json.Unmarshal(message, &msg)
-		if err != nil {
-			fmt.Printf("Error parsing message JSON: %s", err)
-			continue
-		}
-
-		// Extract the "query" field from the JSON
-		UserID := msg.UserID
-
-		// Если преобразование успешно, то это целое число
-		jsonData, err := wsh.GMContrl.GetUserChats(UserID)
-		if err != nil {
-			fmt.Printf("Error fetching users by ID: %s", err)
-			return
-		}
-
-		// Send the JSON response back to the client
-		err = c.WriteMessage(messageType, jsonData)
-		if err != nil {
-			fmt.Printf("Error sending message: %v", err)
-			break
-		}
-
-		fmt.Printf("Получено сообщение %s", message)
-
-	}
-}
-
-func (cmh *ChatMessageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	cmh.upgrader.CheckOrigin = func(r *http.Request) bool {
-		return true
-	}
-
-	ws, err := cmh.upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Error upgrading to WebSocket: %s", err)})
+		http.Error(w, fmt.Sprintf("Error upgrading to WebSocket: %s", err), http.StatusInternalServerError)
 		return
 	}
 	defer ws.Close()
 
-	postmessengercontroller.Clients[ws] = true
+	// Register the client using the controller's method (do not modify the clients map directly)
+	mc.WsController.AddClient(ws)
 
+	// Main loop for reading messages
 	for {
 		var msg map[string]interface{}
-		err := ws.ReadJSON(&msg)
-		if err != nil {
-			fmt.Printf("Error reading message: %s", err)
-
-			delete(postmessengercontroller.Clients, ws)
-
+		if err := ws.ReadJSON(&msg); err != nil {
+			log.Printf("Error reading message: %s", err)
+			mc.WsController.RemoveClient(ws)
 			ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Error reading message: %s", err)})
 			break
 		}
 
+		// Dispatch the message based on its type
 		switch msg["type"] {
-
 		case "initial":
-			chatIdFloat, ok := msg["chat_id"].(float64)
-			if !ok {
-				fmt.Println("Invalid chat_id")
-
-				ws.WriteJSON(map[string]string{"error": "Invalid chat_id format"})
-				break
-			}
-
-			chatId := int(chatIdFloat)
-
-			messages, err := cmh.MMC.LoadMessages(chatId)
-			if err != nil {
-				fmt.Printf("Error loading messages: %s", err)
-
-				ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Error loading messages: %s", err)})
-				break
-			}
-
-			err = ws.WriteJSON(map[string]interface{}{
-				"type":     "initial",
-				"messages": messages,
-			})
-			if err != nil {
-				fmt.Printf("Error sending initial messages: %s", err)
-				ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Error sending initial messages: %s", err)})
-				break
-			}
-
+			mc.MessageTypeController.HandleInitialMessage(ws, msg)
 		case "message":
-			messageData, ok := msg["message"].(map[string]interface{})
-			if !ok {
-				fmt.Println("Invalid message format")
-
-				ws.WriteJSON(map[string]string{"error": "Invalid message format"})
-				continue
-			}
-
-			messageIdFloat, _ := messageData["MessageId"].(float64)
-			authorIdFloat, _ := messageData["AuthorId"].(float64)
-			timestampFloat, _ := messageData["Timestamp"].(float64)
-			receiverIdFloat, _ := messageData["ReceiverId"].(float64)
-			messageText, _ := messageData["Message"].(string)
-			chatIdFloat, _ := messageData["ChatId"].(float64)
-			isEdited, _ := messageData["IsEdited"].(bool)
-
-			msgData := postmessengercontroller.Mesaage{
-				MessageId:  int(messageIdFloat),
-				AuthorId:   int(authorIdFloat),
-				Timestamp:  time.Unix(int64(timestampFloat), 0),
-				ReceiverId: int(receiverIdFloat),
-				Message:    messageText,
-				ChatId:     int(chatIdFloat),
-				IsEdited:   isEdited,
-			}
-
-			err = cmh.MMC.SaveMessage(msgData)
-			if err != nil {
-				fmt.Printf("Error saving message to database: %s", err)
-
-				ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Error saving message to database: %s", err)})
-				break
-			}
-
-			FinalDict := postmessengercontroller.FinalMessage{Type: "message", Message: msgData}
-
-			if err != nil {
-				fmt.Printf("Error sending message back to client: %s", err)
-				break
-			}
-
-			postmessengercontroller.Broadcast <- FinalDict
-
+			mc.MessageTypeController.HandleNewMessage(ws, msg)
 		case "message_reply":
-
-			messageReplyData, ok := msg["message"].(map[string]interface{})
-
-			if !ok {
-				fmt.Println("Invalid message format")
-
-				ws.WriteJSON(map[string]string{"error": "Invalid message format"})
-				continue
-			}
-
-			fmt.Println(messageReplyData["ParentMessageId"])
-
-			messageIdFloat, _ := messageReplyData["MessageId"].(float64)
-			authorIdFloat, _ := messageReplyData["AuthorId"].(float64)
-			timestampFloat, _ := messageReplyData["Timestamp"].(float64)
-			receiverIdFloat, _ := messageReplyData["ReceiverId"].(float64)
-			messageText, _ := messageReplyData["Message"].(string)
-			chatIdFloat, _ := messageReplyData["ChatId"].(float64)
-			isEdited, _ := messageReplyData["IsEdited"].(bool)
-			parentMessageIdFloat, _ := messageReplyData["ParentMessageId"].(float64)
-
-			msgData := postmessengercontroller.MessageReply{
-				MessageId:       int(messageIdFloat),
-				AuthorId:        int(authorIdFloat),
-				Timestamp:       time.Unix(int64(timestampFloat), 0),
-				ReceiverId:      int(receiverIdFloat),
-				Message:         messageText,
-				ChatId:          int(chatIdFloat),
-				IsEdited:        isEdited,
-				ParentMessageId: int(parentMessageIdFloat),
-			}
-
-			err = cmh.MMC.SaveMessageReply(msgData)
-			if err != nil {
-				fmt.Printf("Error saving message to database: %s", err)
-
-				ws.WriteJSON(map[string]string{"error": fmt.Sprintf("Error saving message to database: %s", err)})
-				break
-			}
-
-			FinalDict := postmessengercontroller.FinalMessageReply{Type: "message_reply", Message: msgData}
-
-			if err != nil {
-				fmt.Printf("Error sending message back to client: %s", err)
-				break
-			}
-
-			postmessengercontroller.RepliesBroadcast <- FinalDict
-
+			mc.MessageTypeController.HandleMessageReply(ws, msg)
+		default:
+			ws.WriteJSON(map[string]string{"error": "Invalid message type"})
 		}
-
 	}
 }
 
 func main() {
-	DBPool := &database.DatabasePoolController{}
-	DBPool.StartupEvent()
-
-	BContrl := basecontroller.BaseController{Database: DBPool.GetDb()}
-	GMContrl := getdatabasecontroller.GetMessengerController{BaseController: &BContrl}
-	MMC := postmessengercontroller.MakeMessagesController{BaseController: &BContrl}
-
-	wsHandler := &ChatsHandler{
-		upgrader: websocket.Upgrader{},
-		GMContrl: &GMContrl,
+	// Initialize the database pool
+	dbPool := &database.DatabasePoolController{}
+	if err := dbPool.StartupEvent(); err != nil {
+		log.Fatalf("Failed to start database: %v", err)
 	}
-
-	chatMessageHandler := &ChatMessageHandler{
-		upgrader: websocket.Upgrader{},
-		MMC:      &MMC,
-	}
-
-	http.Handle("/chats", wsHandler)
-	http.Handle("/chat", chatMessageHandler)
-
-	fmt.Println("Запуск сервера на http://localhost:8440")
-
-	go postmessengercontroller.HandleMessages(&MMC)
-
-	server := &http.Server{Addr: "localhost:8440"}
-	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("Ошибка запуска сервера: %v", err)
+	defer func() {
+		if err := dbPool.ShutdownEvent(); err != nil {
+			log.Printf("Error during DB shutdown: %v", err)
 		}
 	}()
 
+	// Initialize the base controller with the database connection
+	baseCtrl := BaseController.BaseController{Database: dbPool.GetDb()}
+
+	// Initialize controllers for retrieving and sending messages
+	getCtrl := GetDatabaseController.GetMessengerController{BaseController: &baseCtrl}
+	postCtrl := PostMessengerController.MakeMessagesController{BaseController: &baseCtrl}
+
+	// Initialize WebSocket handlers.
+	// Assume ChatsHandler implements WebsocketRepository.
+	wsHandler := &ChatsHandler{
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		},
+		GMContrl: &getCtrl,
+	}
+
+	// Assume ChatMessageHandler implements MessageTypeRepository.
+	chatMsgHandler := &ChatMessageHandler{
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		},
+		MMC: &postCtrl,
+	}
+
+	// Initialize the main message controller that combines message type handling.
+	mainMsgCtrl := &MainMessageController{
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		},
+		WsController:          wsHandler,      // ChatsHandler satisfies WebsocketRepository
+		MessageTypeController: chatMsgHandler, // ChatMessageHandler satisfies MessageTypeRepository
+		Repo:                  postCtrl,       // Use the message repository from postCtrl
+	}
+
+	// Register routes
+	http.Handle("/chats", wsHandler)
+	http.Handle("/chat", mainMsgCtrl)
+
+	// Start message handling in the background
+	go mainMsgCtrl.WsController.HandleMessages()
+
+	// Configure and start the HTTP server
+	server := &http.Server{Addr: "localhost:8440"}
+	go func() {
+		log.Printf("Server starting on http://%s", server.Addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Wait for termination signals (SIGINT, SIGTERM)
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	DBPool.ShutdownEvent()
+	log.Println("Shutting down server...")
 
-	if err := server.Close(); err != nil {
-		fmt.Printf("Ошибка при завершении работы сервера: %v", err)
+	// Perform graceful shutdown with a 5-second timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server shutdown failed: %v", err)
 	}
 
-	fmt.Println("Сервер был корректно завершен.")
+	log.Println("Server gracefully stopped.")
 }

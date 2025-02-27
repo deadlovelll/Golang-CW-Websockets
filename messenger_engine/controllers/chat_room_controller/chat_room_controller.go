@@ -1,4 +1,4 @@
-package postmessengercontroller
+package chatroomcontroller
 
 import (
 	"context"

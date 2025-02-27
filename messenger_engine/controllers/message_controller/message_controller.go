@@ -20,11 +20,6 @@ type PostgresMessageRepository struct {
 	DB *sql.DB
 }
 
-// NewPostgresMessageRepository returns a new PostgresMessageRepository.
-func NewPostgresMessageRepository(db *sql.DB) MessageRepository {
-	return &PostgresMessageRepository{DB: db}
-}
-
 // SaveMessage inserts a new message into the database.
 func (r *PostgresMessageRepository) SaveMessage(ctx context.Context, msg Messages.Message) error {
 	query := `

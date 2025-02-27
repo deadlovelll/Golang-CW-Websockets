@@ -11,6 +11,9 @@ import (
 
 type WebsocketRepository interface {
 	HandleMessages()
+	AddClient(client *websocket.Conn)
+	RemoveClient(client *websocket.Conn)
+	GetClients() map[*websocket.Conn]bool
 }
 
 // MessageBroadcaster manages WebSocket clients and message broadcasting.
@@ -34,6 +37,17 @@ func (mb *MessageBroadcaster) RemoveClient(client *websocket.Conn) {
 	defer mb.mu.Unlock()
 	client.Close()
 	delete(mb.clients, client)
+}
+
+func (mb *MessageBroadcaster) GetClients() map[*websocket.Conn]bool {
+	mb.mu.RLock()
+	defer mb.mu.RUnlock()
+
+	clientsCopy := make(map[*websocket.Conn]bool)
+	for client, active := range mb.clients {
+		clientsCopy[client] = active
+	}
+	return clientsCopy
 }
 
 // HandleMessages listens for messages and broadcasts them to all clients.

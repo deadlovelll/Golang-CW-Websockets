@@ -158,7 +158,7 @@ func (cmh *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[st
 func parseChatID(msg map[string]interface{}) (int, error) {
 	chatIdFloat, ok := msg["chat_id"].(float64)
 	if !ok {
-		return 0, fmt.Errorf("Invalid chat_id")
+		return 0, fmt.Errorf("invalid chat_id")
 	}
 	return int(chatIdFloat), nil
 }
@@ -167,7 +167,7 @@ func parseChatID(msg map[string]interface{}) (int, error) {
 func parseMessageData(msg map[string]interface{}) (postmessengercontroller.Mesaage, error) {
 	messageData, ok := msg["message"].(map[string]interface{})
 	if !ok {
-		return postmessengercontroller.Mesaage{}, fmt.Errorf("Invalid message format")
+		return postmessengercontroller.Mesaage{}, fmt.Errorf("invalid message format")
 	}
 
 	return postmessengercontroller.Mesaage{
@@ -185,7 +185,7 @@ func parseMessageData(msg map[string]interface{}) (postmessengercontroller.Mesaa
 func parseMessageReplyData(msg map[string]interface{}) (postmessengercontroller.MessageReply, error) {
 	messageReplyData, ok := msg["message"].(map[string]interface{})
 	if !ok {
-		return postmessengercontroller.MessageReply{}, fmt.Errorf("Invalid message format")
+		return postmessengercontroller.MessageReply{}, fmt.Errorf("invalid message format")
 	}
 
 	return postmessengercontroller.MessageReply{

@@ -41,10 +41,11 @@ func main() {
 	baseCtrl := basecontroller.BaseController{Database: dbPool.GetDb()}
 	chatCtrl := chatcontroller.ChatController{BaseController: &baseCtrl}
 	messageCtrl := messagecontroller.MessageController{BaseController: &baseCtrl}
+	broadcastCtrl := broadcastcontroller.Broadcast{}
 
 	// Initialize WebSocket handlers
 	wsHandler := chathandler.NewChatsHandler(websocket.Upgrader{}, &chatCtrl)
-	chatMsgHandler := chatmessagehandler.NewChatMessageHandler(websocket.Upgrader{}, &messageCtrl)
+	chatMsgHandler := chatmessagehandler.NewChatMessageHandler(websocket.Upgrader{}, &messageCtrl, &broadcastCtrl)
 
 	// Configure HTTP routes
 	mux := http.NewServeMux()

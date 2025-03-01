@@ -2,6 +2,7 @@ package chatmessagehandler
 
 import (
 	"net/http"
+	"log"
 
 	"github.com/gorilla/websocket"
 
@@ -21,76 +22,88 @@ type ChatMessageHandler struct {
 	Broadcast	  *Broadcast.Broadcast
 }
 
-// NewChatMessageHandler returns a new instance of ChatMessageHandler.
 func NewChatMessageHandler(
 	upgrader websocket.Upgrader,
 	ctrl *MessageController.MessageController,
+	broadcast *Broadcast.Broadcast, // Add Broadcast initialization here
 ) *ChatMessageHandler {
+	if broadcast == nil {
+		log.Fatal("NewChatMessageHandler: broadcast instance cannot be nil")
+	}
+
 	return &ChatMessageHandler{
 		upgrader:      upgrader,
 		msgCtrl:       ctrl,
-		MessageParser: MessageParser.New(),           // Auto-initialized
-		ErrorHandler:  ErrorHandler.NewErrorHandler(), // Auto-initialized
+		Broadcast:     broadcast,
+		MessageParser: MessageParser.New(),
+		ErrorHandler:  ErrorHandler.NewErrorHandler(),
 	}
 }
+
 
 // ServeHTTP upgrades the connection and processes incoming chat messages.
 func (h *ChatMessageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+    h.upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	ws, err := h.upgrader.Upgrade(w, r, nil)
-	h.ErrorHandler.HandleWebSocketError(err, nil, "Error upgrading to WebSocket: %s")
-	defer ws.Close()
+    ws, err := h.upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        // Correctly pass the error with arguments
+        h.ErrorHandler.HandleWebSocketError(err, nil, "Error upgrading to WebSocket: %s", err)
+        return
+    }
+    defer ws.Close()
 
-	// Register the client for broadcasts.
-	h.Broadcast.Clients[ws] = true
+    // Register the client for broadcasts.
+    h.Broadcast.Clients[ws] = true
 
-	for {
-		var msg map[string]interface{}
-		if err := ws.ReadJSON(&msg); err != nil {
-			h.ErrorHandler.HandleWebSocketError(err, ws, "Error reading message: %s")
-			delete(h.Broadcast.Clients, ws)
-			break
-		}
+    for {
+        var msg map[string]interface{}
+        if err := ws.ReadJSON(&msg); err != nil {
+            // Correctly pass the error with arguments
+            h.ErrorHandler.HandleWebSocketError(err, ws, "Error reading message: %s", err)
+            delete(h.Broadcast.Clients, ws)
+            break
+        }
 
-		switch msg["type"] {
-		case "initial":
-			h.handleInitialMessage(ws, msg)
-		case "message":
-			h.handleMessage(ws, msg)
-		case "message_reply":
-			h.handleMessageReply(ws, msg)
-		}
-	}
+        switch msg["type"] {
+        case "initial":
+            h.handleInitialMessage(ws, msg)
+        case "message":
+            h.handleMessage(ws, msg)
+        case "message_reply":
+            h.handleMessageReply(ws, msg)
+        }
+    }
 }
+
 
 func (h *ChatMessageHandler) handleInitialMessage(ws *websocket.Conn, msg map[string]interface{}) {
 	chatID, err := h.MessageParser.ParseChatID(msg)
 	if err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid chat_id format")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid chat_id format: %s", err)
 		return
 	}
 
 	messages, err := h.msgCtrl.LoadMessages(chatID)
 	if err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Error loading messages: %s")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Error loading messages: %s", err)
 		return
 	}
 
 	if err := ws.WriteJSON(map[string]interface{}{"type": "initial", "messages": messages}); err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Error sending initial messages: %s")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Error sending initial messages: %s", err)
 	}
 }
 
 func (h *ChatMessageHandler) handleMessage(ws *websocket.Conn, msg map[string]interface{}) {
 	messageData, err := h.MessageParser.ParseMessageData(msg)
 	if err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid message format")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid message format: %s", err)
 		return
 	}
 
 	if err := h.msgCtrl.SaveMessage(messageData); err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Error saving message to database: %s")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Error saving message to database: %s", err)
 		return
 	}
 
@@ -101,15 +114,16 @@ func (h *ChatMessageHandler) handleMessage(ws *websocket.Conn, msg map[string]in
 func (h *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[string]interface{}) {
 	messageReplyData, err := h.MessageParser.ParseMessageReplyData(msg)
 	if err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid message format")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid message format: %s", err)
 		return
 	}
 
 	if err := h.msgCtrl.SaveMessageReply(messageReplyData); err != nil {
-		h.ErrorHandler.HandleWebSocketError(err, ws, "Error saving message reply to database: %s")
+		h.ErrorHandler.HandleWebSocketError(err, ws, "Error saving message reply to database: %s", err)
 		return
 	}
 
 	finalMsgReply := Messages.FinalMessageReply{Type: "message_reply", Message: messageReplyData}
 	h.Broadcast.RepliesBroadcast <- finalMsgReply
 }
+

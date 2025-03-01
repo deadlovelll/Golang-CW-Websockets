@@ -36,30 +36,34 @@ func (h *ChatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
 	conn, err := h.upgrader.Upgrade(w, r, nil)
-	h.ErrorHandler.HandleWebSocketError(err, nil, "error %s when upgrading connection to websocket")
+	if err != nil {
+		h.ErrorHandler.HandleWebSocketError(err, nil, "Error upgrading connection to WebSocket: %s", err)
+		return
+	}
+	defer conn.Close() // Ensure the connection is closed when the function exits.
 
 	for {
 		messageType, message, err := conn.ReadMessage()
 		if err != nil {
-			h.ErrorHandler.HandleWebSocketError(err, conn, "Error reading message %s")
+			h.ErrorHandler.HandleWebSocketError(err, conn, "Error reading message: %s", err)
 			break
 		}
 
 		var msg ChatsMessage
 		if err := json.Unmarshal(message, &msg); err != nil {
-			h.ErrorHandler.HandleWebSocketError(err, conn, "Error parsing message JSON: %s")
+			h.ErrorHandler.HandleWebSocketError(err, conn, "Error parsing message JSON: %s", err)
 			continue
 		}
 
 		// Use the chat controller to fetch chat data.
 		jsonData, err := h.chatCtrl.GetUserChats(msg.UserID)
 		if err != nil {
-			h.ErrorHandler.HandleWebSocketError(err, conn, "Error fetching users by ID: %s")
+			h.ErrorHandler.HandleWebSocketError(err, conn, "Error fetching users by ID: %s", err)
 			return
 		}
 
 		if err := conn.WriteMessage(messageType, jsonData); err != nil {
-			h.ErrorHandler.HandleWebSocketError(err, conn, "Error sending message: %v")
+			h.ErrorHandler.HandleWebSocketError(err, conn, "Error sending message: %v", err)
 			break
 		}
 

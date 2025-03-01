@@ -11,44 +11,44 @@ import (
 )
 
 // Broadcaster manages WebSocket clients and message broadcasting.
-type Broadcaster struct {
-	clients         map[*websocket.Conn]bool
+type Broadcast struct {
+	Clients         map[*websocket.Conn]bool
 	mu              sync.Mutex
-	broadcast       chan message.FinalMessage
-	repliesBroadcast chan message.FinalMessageReply
+	Broadcast       chan message.FinalMessage
+	RepliesBroadcast chan message.FinalMessageReply
 }
 
 // NewBroadcaster initializes a new Broadcaster instance.
-func NewBroadcaster() *Broadcaster {
-	return &Broadcaster{
-		clients:         make(map[*websocket.Conn]bool),
-		broadcast:       make(chan message.FinalMessage),
-		repliesBroadcast: make(chan message.FinalMessageReply),
+func NewBroadcaster() *Broadcast {
+	return &Broadcast{
+		Clients:         make(map[*websocket.Conn]bool),
+		Broadcast:       make(chan message.FinalMessage),
+		RepliesBroadcast: make(chan message.FinalMessageReply),
 	}
 }
 
 // RegisterClient adds a new WebSocket client.
-func (b *Broadcaster) RegisterClient(client *websocket.Conn) {
+func (b *Broadcast) RegisterClient(client *websocket.Conn) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.clients[client] = true
+	b.Clients[client] = true
 }
 
 // RemoveClient removes a WebSocket client and closes the connection.
-func (b *Broadcaster) RemoveClient(client *websocket.Conn) {
+func (b *Broadcast) RemoveClient(client *websocket.Conn) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if _, exists := b.clients[client]; exists {
+	if _, exists := b.Clients[client]; exists {
 		client.Close()
-		delete(b.clients, client)
+		delete(b.Clients, client)
 	}
 }
 
 // HandleMessages listens for messages and broadcasts them to all clients.
-func (b *Broadcaster) HandleMessages(mmc *messagecontroller.MessageController) {
-	for msg := range b.broadcast {
+func (b *Broadcast) HandleMessages(mmc *messagecontroller.MessageController) {
+	for msg := range b.Broadcast {
 		b.mu.Lock()
-		for client := range b.clients {
+		for client := range b.Clients {
 			if err := client.WriteJSON(msg); err != nil {
 				log.Printf("Error sending message to client: %v", err)
 				b.RemoveClient(client)
@@ -59,18 +59,18 @@ func (b *Broadcaster) HandleMessages(mmc *messagecontroller.MessageController) {
 }
 
 // BroadcastMessage sends a message to all clients.
-func (b *Broadcaster) BroadcastMessage(msg message.FinalMessage) {
+func (b *Broadcast) BroadcastMessage(msg message.FinalMessage) {
 	select {
-	case b.broadcast <- msg:
+	case b.Broadcast <- msg:
 	default:
 		log.Println("Broadcast channel full, dropping message")
 	}
 }
 
 // BroadcastReplyMessage sends a reply message to all clients.
-func (b *Broadcaster) BroadcastReplyMessage(msg message.FinalMessageReply) {
+func (b *Broadcast) BroadcastReplyMessage(msg message.FinalMessageReply) {
 	select {
-	case b.repliesBroadcast <- msg:
+	case b.RepliesBroadcast <- msg:
 	default:
 		log.Println("Reply broadcast channel full, dropping message")
 	}

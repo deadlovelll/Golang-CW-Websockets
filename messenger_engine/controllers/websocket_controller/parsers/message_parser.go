@@ -25,13 +25,13 @@ func (p *Parser) ParseChatID(msg map[string]interface{}) (int, error) {
 }
 
 // ParseMessageData extracts a message from the incoming JSON.
-func (p *Parser) ParseMessageData(msg map[string]interface{}) (Messages.Mesaage, error) {
+func (p *Parser) ParseMessageData(msg map[string]interface{}) (Messages.Message, error) {
 	messageData, ok := msg["message"].(map[string]interface{})
 	if !ok {
-		return Messages.Mesaage{}, fmt.Errorf("invalid message format")
+		return Messages.Message{}, fmt.Errorf("invalid message format")
 	}
 
-	return Messages.Mesaage{
+	return Messages.Message{
 		MessageId:  int(messageData["MessageId"].(float64)),
 		AuthorId:   int(messageData["AuthorId"].(float64)),
 		Timestamp:  time.Unix(int64(messageData["Timestamp"].(float64)), 0),

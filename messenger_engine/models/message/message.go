@@ -1,4 +1,4 @@
-package postmessengercontroller
+package message
 
 import (
 	"database/sql"
@@ -6,7 +6,7 @@ import (
 )
 
 // Mesaage represents a message structure.
-type Mesaage struct {
+type Message struct {
 	MessageId       int           `json:"message_id"`
 	AuthorId        int           `json:"author_id"`
 	Timestamp       time.Time     `json:"timestamp"`
@@ -31,7 +31,7 @@ type MessageReply struct {
 
 // FinalMessage represents the final message format to be sent to the client.
 type FinalMessage struct {
-	Message Mesaage `json:"message"`
+	Message Message `json:"message"`
 	Type    string  `json:"type"`
 }
 

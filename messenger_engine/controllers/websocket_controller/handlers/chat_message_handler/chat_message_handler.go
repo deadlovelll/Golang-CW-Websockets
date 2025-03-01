@@ -18,6 +18,7 @@ type ChatMessageHandler struct {
 	msgCtrl       *MessageController.MessageController
 	ErrorHandler  *ErrorHandler.ErrorHandler
 	MessageParser *MessageParser.Parser
+	Broadcast	  *Broadcast.Broadcast
 }
 
 // NewChatMessageHandler returns a new instance of ChatMessageHandler.
@@ -42,13 +43,13 @@ func (h *ChatMessageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer ws.Close()
 
 	// Register the client for broadcasts.
-	Broadcast.Clients[ws] = true
+	h.Broadcast.Clients[ws] = true
 
 	for {
 		var msg map[string]interface{}
 		if err := ws.ReadJSON(&msg); err != nil {
 			h.ErrorHandler.HandleWebSocketError(err, ws, "Error reading message: %s")
-			delete(Broadcast.Clients, ws)
+			delete(h.Broadcast.Clients, ws)
 			break
 		}
 
@@ -94,7 +95,7 @@ func (h *ChatMessageHandler) handleMessage(ws *websocket.Conn, msg map[string]in
 	}
 
 	finalMsg := Messages.FinalMessage{Type: "message", Message: messageData}
-	Broadcast.Broadcast <- finalMsg
+	h.Broadcast.Broadcast <- finalMsg
 }
 
 func (h *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[string]interface{}) {
@@ -110,5 +111,5 @@ func (h *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[stri
 	}
 
 	finalMsgReply := Messages.FinalMessageReply{Type: "message_reply", Message: messageReplyData}
-	Broadcast.RepliesBroadcast <- finalMsgReply
+	h.Broadcast.RepliesBroadcast <- finalMsgReply
 }

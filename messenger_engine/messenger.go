@@ -1,67 +1,96 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"messenger_engine/modules/database"
-
-	BaseController "messenger_engine/controllers/base_controller"
-	ChatController "messenger_engine/controllers/chat_controller"
-	MessageController "messenger_engine/controllers/message_controller"
-	Broadcast "messenger_engine/controllers/broadcast_controller"
+	"time"
 
 	"github.com/gorilla/websocket"
 
-	ChatMessageHandler "messenger_engine/controllers/websocket_controller/handlers/chat_message_handler"
-	ChatHandler "messenger_engine/controllers/websocket_controller/handlers/chat_handler"
+	"messenger_engine/modules/database"
+
+	// Controllers
+	"messenger_engine/controllers/base_controller"
+	"messenger_engine/controllers/chat_controller"
+	"messenger_engine/controllers/message_controller"
+	"messenger_engine/controllers/broadcast_controller"
+
+	// WebSocket Handlers
+	"messenger_engine/controllers/websocket_controller/handlers/chat_message_handler"
+	"messenger_engine/controllers/websocket_controller/handlers/chat_handler"
 )
 
+const serverAddr = "localhost:8440"
+
 func main() {
-	// Initialize the database pool.
+	// Initialize database
+	dbPool := initializeDatabase()
+	defer dbPool.ShutdownEvent()
+
+	// Initialize controllers
+	baseCtrl := basecontroller.BaseController{Database: dbPool.GetDb()}
+	chatCtrl := chatcontroller.ChatController{BaseController: &baseCtrl}
+	messageCtrl := messagecontroller.MessageController{BaseController: &baseCtrl}
+
+	// Initialize WebSocket handlers
+	wsHandler := chathandler.NewChatsHandler(websocket.Upgrader{}, &chatCtrl)
+	chatMsgHandler := chatmessagehandler.NewChatMessageHandler(websocket.Upgrader{}, &messageCtrl)
+
+	// Configure HTTP routes
+	mux := http.NewServeMux()
+	mux.Handle("/chats", wsHandler)
+	mux.Handle("/chat", chatMsgHandler)
+
+	// Start broadcast routine
+	go broadcastcontroller.NewBroadcaster().HandleMessages(&messageCtrl)
+
+	// Start server with graceful shutdown
+	startServer(mux)
+}
+
+// initializeDatabase sets up the database pool
+func initializeDatabase() *database.DatabasePoolController {
 	dbPool := &database.DatabasePoolController{}
 	dbPool.StartupEvent()
+	return dbPool
+}
 
-	// Create a base controller instance.
-	baseCtrl := BaseController.BaseController{Database: dbPool.GetDb()}
+// startServer starts the HTTP server and handles graceful shutdown
+func startServer(handler http.Handler) {
+	server := &http.Server{
+		Addr:    serverAddr,
+		Handler: handler,
+	}
 
-	// Initialize chat and message controllers.
-	chatCtrl := ChatController.ChatController{BaseController: &baseCtrl}
-	messageCtrl := MessageController.MessageController{BaseController: &baseCtrl}
-
-	// Create WebSocket handlers with dependency injection.
-	wsHandler := ChatHandler.NewChatsHandler(websocket.Upgrader{}, &chatCtrl)
-	chatMsgHandler := ChatMessageHandler.NewChatMessageHandler(websocket.Upgrader{}, &messageCtrl)
-
-	// Setup HTTP routes.
-	http.Handle("/chats", wsHandler)
-	http.Handle("/chat", chatMsgHandler)
-
-	log.Println("Starting server on http://localhost:8440")
-
-	// Start the broadcast routine.
-	go Broadcast.HandleMessages(&messageCtrl)
-
-	// Start the HTTP server.
-	server := &http.Server{Addr: "localhost:8440"}
+	// Run server in a separate goroutine
 	go func() {
+		log.Printf("Server started on http://%s", serverAddr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("Error starting server: %v", err)
+			log.Fatalf("Server error: %v", err)
 		}
 	}()
 
-	// Wait for termination signals.
+	// Handle graceful shutdown
+	waitForShutdown(server)
+}
+
+// waitForShutdown handles termination signals and graceful server shutdown
+func waitForShutdown(server *http.Server) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
 	<-quit
+	log.Println("Shutting down server...")
 
-	dbPool.ShutdownEvent()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	if err := server.Close(); err != nil {
-		log.Printf("Error shutting down server: %v", err)
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server shutdown failed: %v", err)
 	}
 
 	log.Println("Server successfully shut down.")

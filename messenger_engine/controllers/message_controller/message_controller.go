@@ -13,7 +13,7 @@ type MessageController struct {
 }
 
 // SaveMessage saves a new message into the database.
-func (mmc *MessageController) SaveMessage(msg Messages.Mesaage) error {
+func (mmc *MessageController) SaveMessage(msg Messages.Message) error {
 	db := mmc.Database.GetConnection()
 	_, err := db.Exec(`
 		INSERT INTO base_chatmessage (content, timestamp, author_id, chat_id, receiver_id, is_edited, parent)
@@ -33,7 +33,7 @@ func (mmc *MessageController) SaveMessageReply(msg Messages.MessageReply) error 
 }
 
 // LoadMessages loads messages for a given chatId from the database.
-func (mmc *MessageController) LoadMessages(chatId int) ([]Messages.Mesaage, error) {
+func (mmc *MessageController) LoadMessages(chatId int) ([]Messages.Message, error) {
 	db := mmc.Database.GetConnection()
 
 	query := `SELECT * FROM base_chatmessage WHERE chat_id = $1`
@@ -43,9 +43,9 @@ func (mmc *MessageController) LoadMessages(chatId int) ([]Messages.Mesaage, erro
 	}
 	defer rows.Close()
 
-	var messages []Messages.Mesaage
+	var messages []Messages.Message
 	for rows.Next() {
-		var msg Messages.Mesaage
+		var msg Messages.Message
 		if err := rows.Scan(&msg.MessageId, &msg.Message, &msg.IsEdited, &msg.Timestamp, &msg.AuthorId, &msg.ChatId, &msg.ReceiverId, &msg.ParentMessageId); err != nil {
 			return nil, fmt.Errorf("error scanning row: %w", err)
 		}

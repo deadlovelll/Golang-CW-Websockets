@@ -11,7 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"messenger_engine/modules/database"
+	"messenger_engine/modules/database/database_pool"
 
 	// Controllers
 	"messenger_engine/controllers/base_controller"
@@ -22,14 +22,20 @@ import (
 	// WebSocket Handlers
 	"messenger_engine/controllers/websocket_controller/handlers/chat_message_handler"
 	"messenger_engine/controllers/websocket_controller/handlers/chat_handler"
+
+	"messenger_engine/utls/env"
 )
 
 const serverAddr = "localhost:8440"
 
 func main() {
+
+	// Loading the .env file vars
+	goenv.LoadEnv()
+
 	// Initialize database
 	dbPool := initializeDatabase()
-	defer dbPool.ShutdownEvent()
+	defer dbPool.StartupEvent()
 
 	// Initialize controllers
 	baseCtrl := basecontroller.BaseController{Database: dbPool.GetDb()}
@@ -53,8 +59,8 @@ func main() {
 }
 
 // initializeDatabase sets up the database pool
-func initializeDatabase() *database.DatabasePoolController {
-	dbPool := &database.DatabasePoolController{}
+func initializeDatabase() *databasepool.DatabasePoolController {
+	dbPool := &databasepool.DatabasePoolController{}
 	dbPool.StartupEvent()
 	return dbPool
 }

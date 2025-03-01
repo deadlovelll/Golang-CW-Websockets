@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	basecontroller "messenger_engine/controllers/base_controller"
-	"messenger_engine/modules/database"
+	"messenger_engine/modules/database/database"
 )
 
 // MockDatabase simulates a database instance for testing.

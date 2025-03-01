@@ -3,7 +3,7 @@ package basecontroller
 import (
 	"log"
 
-	"messenger_engine/modules/database"
+	"messenger_engine/modules/database/database"
 )
 
 // BaseController provides a common structure for controllers that require database access.

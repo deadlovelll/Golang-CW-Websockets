@@ -1,8 +1,8 @@
-package postmessengercontroller
+package messagecontroller
 
 import (
 	"fmt"
-	
+
 	BaseController "messenger_engine/controllers/base_controller"
 	Messages "messenger_engine/models/message"
 )

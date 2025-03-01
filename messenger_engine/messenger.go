@@ -28,12 +28,13 @@ import (
 
 const serverAddr = "localhost:8440"
 
+// main is the entry point of the application. It initializes environment variables,
+// database connections, controllers, WebSocket handlers, and starts the HTTP server.
 func main() {
-
-	// Loading the .env file vars
+	// Load environment variables from .env file
 	goenv.LoadEnv()
 
-	// Initialize database
+	// Initialize the database connection pool
 	dbPool := initializeDatabase()
 	defer dbPool.StartupEvent()
 
@@ -52,21 +53,25 @@ func main() {
 	mux.Handle("/chats", wsHandler)
 	mux.Handle("/chat", chatMsgHandler)
 
-	// Start broadcast routine
+	// Start message broadcasting routine
 	go broadcastcontroller.NewBroadcaster().HandleMessages(&messageCtrl)
 
-	// Start server with graceful shutdown
+	// Start HTTP server with graceful shutdown handling
 	startServer(mux)
 }
 
-// initializeDatabase sets up the database pool
+// initializeDatabase sets up and returns a new database pool controller.
 func initializeDatabase() *databasepool.DatabasePoolController {
 	dbPool := &databasepool.DatabasePoolController{}
 	dbPool.StartupEvent()
 	return dbPool
 }
 
-// startServer starts the HTTP server and handles graceful shutdown
+// startServer initializes and starts the HTTP server in a separate goroutine.
+// It also triggers the graceful shutdown handling mechanism.
+//
+// Parameters:
+//   - handler: The HTTP handler (mux router) to handle incoming requests.
 func startServer(handler http.Handler) {
 	server := &http.Server{
 		Addr:    serverAddr,
@@ -85,7 +90,10 @@ func startServer(handler http.Handler) {
 	waitForShutdown(server)
 }
 
-// waitForShutdown handles termination signals and graceful server shutdown
+// waitForShutdown listens for termination signals and gracefully shuts down the HTTP server.
+//
+// Parameters:
+//   - server: The HTTP server instance to be gracefully shut down.
 func waitForShutdown(server *http.Server) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

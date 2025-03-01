@@ -3,14 +3,14 @@ package logger
 import (
 	"encoding/json"
 	"os"
-	"reflect"
 	"runtime"
 	"strconv"
 	"time"
 
-	logstash_logger "github.com/KaranJagtiani/go-logstash"
+	logstash "github.com/KaranJagtiani/go-logstash"
 )
 
+// LogEntry represents a structured log entry.
 type LogEntry struct {
 	Message    string `json:"message"`
 	Level      string `json:"level"`
@@ -21,60 +21,57 @@ type LogEntry struct {
 	LineNumber string `json:"line_number"`
 }
 
-func CustomLogstashFormatter(level string, msg string) ([]byte, error) {
-
+// FormatLogEntry creates a structured log entry in JSON format.
+func FormatLogEntry(level, msg string) ([]byte, error) {
 	logEntry := LogEntry{
 		Message:    msg,
 		Level:      level,
 		TimeStamp:  time.Now().Format(time.RFC3339),
-		Host:       GetHostName(),
-		Method:     GetFuncName(1),
-		Filename:   GetFileName(1),
-		LineNumber: GetLineNumber(1),
+		Host:       getHostName(),
+		Method:     getCallerFunction(2),
+		Filename:   getCallerFile(2),
+		LineNumber: getCallerLine(2),
 	}
-
 	return json.Marshal(logEntry)
 }
 
-func GetHostName() string {
+// getHostName retrieves the system hostname.
+func getHostName() string {
 	host, err := os.Hostname()
-
 	if err != nil {
 		return "unknown"
 	}
-
 	return host
 }
 
-func GetFuncName(i interface{}) string {
-
-	return runtime.FuncForPC(reflect.ValueOf(i).Pointer()).Name()
-}
-
-func GetFileName(skip int) string {
-	_, file, _, ok := runtime.Caller(skip)
-
+// getCallerFunction returns the name of the function that called the logger.
+func getCallerFunction(skip int) string {
+	pc, _, _, ok := runtime.Caller(skip)
 	if !ok {
 		return "unknown"
 	}
+	return runtime.FuncForPC(pc).Name()
+}
 
+// getCallerFile returns the filename where the logger was called.
+func getCallerFile(skip int) string {
+	_, file, _, ok := runtime.Caller(skip)
+	if !ok {
+		return "unknown"
+	}
 	return file
 }
 
-func GetLineNumber(skip int) string {
-
+// getCallerLine returns the line number where the logger was called.
+func getCallerLine(skip int) string {
 	_, _, line, ok := runtime.Caller(skip)
-
 	if !ok {
 		return "undefined"
 	}
-
 	return strconv.Itoa(line)
 }
 
-func LoggerIntialization() *logstash_logger.Logstash {
-
-	logger := logstash_logger.Init("localhost", 5959, "udp", 5)
-
-	return logger
+// InitializeLogger sets up a Logstash logger instance.
+func InitializeLogger() *logstash.Logstash {
+	return logstash.Init("localhost", 5959, "udp", 5)
 }

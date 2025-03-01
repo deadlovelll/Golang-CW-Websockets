@@ -9,20 +9,29 @@ import (
 	Broadcast "messenger_engine/controllers/broadcast_controller"
 	MessageController "messenger_engine/controllers/message_controller"
 	ErrorHandler "messenger_engine/controllers/websocket_controller/handlers/error_handler"
+	MessageParser "messenger_engine/controllers/websocket_controller/parsers"
 )
 
 // ChatMessageHandler handles WebSocket connections for sending and receiving chat messages.
 type ChatMessageHandler struct {
-	upgrader websocket.Upgrader
-	msgCtrl  *MessageController.MessageController
-	ErrorHandler *ErrorHandler.ErrorHandler
+	upgrader      websocket.Upgrader
+	msgCtrl       *MessageController.MessageController
+	ErrorHandler  *ErrorHandler.ErrorHandler
+	MessageParser *MessageParser.Parser
 }
 
 // NewChatMessageHandler returns a new instance of ChatMessageHandler.
-func NewChatMessageHandler(upgrader websocket.Upgrader, ctrl *MessageController.MessageController) *ChatMessageHandler {
+func NewChatMessageHandler(
+	upgrader websocket.Upgrader,
+	ctrl *MessageController.MessageController,
+	parser *MessageParser.Parser,
+	errHandler *ErrorHandler.ErrorHandler,
+) *ChatMessageHandler {
 	return &ChatMessageHandler{
-		upgrader: upgrader,
-		msgCtrl:  ctrl,
+		upgrader:      upgrader,
+		msgCtrl:       ctrl,
+		MessageParser: parser,
+		ErrorHandler:  errHandler,
 	}
 }
 
@@ -57,7 +66,7 @@ func (h *ChatMessageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ChatMessageHandler) handleInitialMessage(ws *websocket.Conn, msg map[string]interface{}) {
-	chatID, err := parseChatID(msg)
+	chatID, err := h.MessageParser.ParseChatID(msg)
 	if err != nil {
 		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid chat_id format")
 		return
@@ -75,7 +84,7 @@ func (h *ChatMessageHandler) handleInitialMessage(ws *websocket.Conn, msg map[st
 }
 
 func (h *ChatMessageHandler) handleMessage(ws *websocket.Conn, msg map[string]interface{}) {
-	messageData, err := parseMessageData(msg)
+	messageData, err := h.MessageParser.ParseMessageData(msg)
 	if err != nil {
 		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid message format")
 		return
@@ -91,7 +100,7 @@ func (h *ChatMessageHandler) handleMessage(ws *websocket.Conn, msg map[string]in
 }
 
 func (h *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[string]interface{}) {
-	messageReplyData, err := parseMessageReplyData(msg)
+	messageReplyData, err := h.MessageParser.ParseMessageReplyData(msg)
 	if err != nil {
 		h.ErrorHandler.HandleWebSocketError(err, ws, "Invalid message format")
 		return
@@ -102,9 +111,6 @@ func (h *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[stri
 		return
 	}
 
-	finalMsgReply := Messages.FinalMessageReply {
-		Type: "message_reply", 
-		Message: messageReplyData,
-}
+	finalMsgReply := Messages.FinalMessageReply{Type: "message_reply", Message: messageReplyData}
 	Broadcast.RepliesBroadcast <- finalMsgReply
 }

@@ -3,37 +3,16 @@ package getmessengercontroller
 import (
 	"encoding/json"
 	"fmt"
-	basecontroller "messenger_engine/modules/base_controller"
-	"net/http"
 	"strconv"
+
+	BaseController "messenger_engine/controllers/base_controller"
+	UlrResponse "messenger_engine/models/presigned_url"
+	UrlController "messenger_engine/controllers/url_controller"
 )
 
 type GetMessengerController struct {
-	*basecontroller.BaseController
-}
-
-type MyResponse struct {
-	Status       string `json:"STATUS"`
-	PresignedURL string `json:"PRESIGNED_URL"`
-}
-
-func GetPresignedUrl(url string, responseCh chan<- *MyResponse, errorCh chan<- string) {
-	resp, err := http.Get(url)
-	if err != nil {
-		errorCh <- fmt.Sprintf("Error making request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	var response MyResponse
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&response)
-	if err != nil {
-		errorCh <- fmt.Sprintf("Error decoding JSON: %v", err)
-		return
-	}
-
-	responseCh <- &response
+	*BaseController.BaseController
+	UrlFetcher UrlController.HttpPresignedUrlFetcher
 }
 
 func (gmc *GetMessengerController) GetUserChats(UserID int) ([]byte, error) {
@@ -101,10 +80,10 @@ func (gmc *GetMessengerController) GetUserChats(UserID int) ([]byte, error) {
 
 		urlString := fmt.Sprintf("http://127.0.0.1:8165?user_id=%s", StrUserId)
 
-		responseCh := make(chan *MyResponse)
+		responseCh := make(chan *UlrResponse.PresignedUrlResponse)
 		errorCh := make(chan string)
 
-		go GetPresignedUrl(urlString, responseCh, errorCh)
+		go gmc.UrlFetcher.Fetch(urlString)
 
 		select {
 		case response := <-responseCh:

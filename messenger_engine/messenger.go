@@ -13,9 +13,12 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	basecontroller "messenger_engine/modules/base_controller"
+	BaseController "messenger_engine/controllers/base_controller"
 	getdatabasecontroller "messenger_engine/get_messenger_controller"
-	postmessengercontroller "messenger_engine/post_messenger_controller"
+
+	Messages "messenger_engine/models/message"
+	Broadcast "messenger_engine/controllers/broadcast_controller"
+	MessageController "messenger_engine/controllers/message_controller"
 )
 
 type ChatsHandler struct {
@@ -25,7 +28,7 @@ type ChatsHandler struct {
 
 type ChatMessageHandler struct {
 	upgrader websocket.Upgrader
-	MMC      *postmessengercontroller.MakeMessagesController
+	MMC      *MessageController.MessageController
 }
 
 type ChatsMessage struct {
@@ -83,13 +86,13 @@ func (cmh *ChatMessageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	handleWebSocketError(err, nil, "Error upgrading to WebSocket: %s")
 
 	defer ws.Close()
-	postmessengercontroller.Clients[ws] = true
+	Broadcast.Clients[ws] = true
 
 	for {
 		var msg map[string]interface{}
 		if err := ws.ReadJSON(&msg); err != nil {
 			handleWebSocketError(err, ws, "Error reading message: %s")
-			delete(postmessengercontroller.Clients, ws)
+			delete(Broadcast.Clients, ws)
 			break
 		}
 
@@ -134,8 +137,8 @@ func (cmh *ChatMessageHandler) handleMessage(ws *websocket.Conn, msg map[string]
 		return
 	}
 
-	finalMsg := postmessengercontroller.FinalMessage{Type: "message", Message: messageData}
-	postmessengercontroller.Broadcast <- finalMsg
+	finalMsg := Messages.FinalMessage{Type: "message", Message: messageData}
+	Broadcast.Broadcast <- finalMsg
 }
 
 func (cmh *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[string]interface{}) {
@@ -150,8 +153,8 @@ func (cmh *ChatMessageHandler) handleMessageReply(ws *websocket.Conn, msg map[st
 		return
 	}
 
-	finalMsgReply := postmessengercontroller.FinalMessageReply{Type: "message_reply", Message: messageReplyData}
-	postmessengercontroller.RepliesBroadcast <- finalMsgReply
+	finalMsgReply := Messages.FinalMessageReply{Type: "message_reply", Message: messageReplyData}
+	Broadcast.RepliesBroadcast <- finalMsgReply
 }
 
 // Helper function to parse chat ID from the incoming message
@@ -164,13 +167,13 @@ func parseChatID(msg map[string]interface{}) (int, error) {
 }
 
 // Helper function to parse message data
-func parseMessageData(msg map[string]interface{}) (postmessengercontroller.Mesaage, error) {
+func parseMessageData(msg map[string]interface{}) (Messages.Mesaage, error) {
 	messageData, ok := msg["message"].(map[string]interface{})
 	if !ok {
-		return postmessengercontroller.Mesaage{}, fmt.Errorf("invalid message format")
+		return Messages.Mesaage{}, fmt.Errorf("invalid message format")
 	}
 
-	return postmessengercontroller.Mesaage{
+	return Messages.Mesaage {
 		MessageId:  int(messageData["MessageId"].(float64)),
 		AuthorId:   int(messageData["AuthorId"].(float64)),
 		Timestamp:  time.Unix(int64(messageData["Timestamp"].(float64)), 0),
@@ -182,13 +185,13 @@ func parseMessageData(msg map[string]interface{}) (postmessengercontroller.Mesaa
 }
 
 // Helper function to parse message reply data
-func parseMessageReplyData(msg map[string]interface{}) (postmessengercontroller.MessageReply, error) {
+func parseMessageReplyData(msg map[string]interface{}) (Messages.MessageReply, error) {
 	messageReplyData, ok := msg["message"].(map[string]interface{})
 	if !ok {
-		return postmessengercontroller.MessageReply{}, fmt.Errorf("invalid message format")
+		return Messages.MessageReply{}, fmt.Errorf("invalid message format")
 	}
 
-	return postmessengercontroller.MessageReply{
+	return Messages.MessageReply{
 		MessageId:       int(messageReplyData["MessageId"].(float64)),
 		AuthorId:        int(messageReplyData["AuthorId"].(float64)),
 		Timestamp:       time.Unix(int64(messageReplyData["Timestamp"].(float64)), 0),
@@ -204,9 +207,9 @@ func main() {
 	DBPool := &database.DatabasePoolController{}
 	DBPool.StartupEvent()
 
-	BContrl := basecontroller.BaseController{Database: DBPool.GetDb()}
+	BContrl := BaseController.BaseController{Database: DBPool.GetDb()}
 	GMContrl := getdatabasecontroller.GetMessengerController{BaseController: &BContrl}
-	MMC := postmessengercontroller.MakeMessagesController{BaseController: &BContrl}
+	MMC := MessageController.MessageController{BaseController: &BContrl}
 
 	wsHandler := &ChatsHandler{upgrader: websocket.Upgrader{}, GMContrl: &GMContrl}
 	chatMessageHandler := &ChatMessageHandler{upgrader: websocket.Upgrader{}, MMC: &MMC}
@@ -216,7 +219,7 @@ func main() {
 
 	log.Println("Starting server on http://localhost:8440")
 
-	go postmessengercontroller.HandleMessages(&MMC)
+	go Broadcast.HandleMessages(&MMC)
 
 	server := &http.Server{Addr: "localhost:8440"}
 	go func() {

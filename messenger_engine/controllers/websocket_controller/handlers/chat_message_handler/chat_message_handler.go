@@ -24,14 +24,12 @@ type ChatMessageHandler struct {
 func NewChatMessageHandler(
 	upgrader websocket.Upgrader,
 	ctrl *MessageController.MessageController,
-	parser *MessageParser.Parser,
-	errHandler *ErrorHandler.ErrorHandler,
 ) *ChatMessageHandler {
 	return &ChatMessageHandler{
 		upgrader:      upgrader,
 		msgCtrl:       ctrl,
-		MessageParser: parser,
-		ErrorHandler:  errHandler,
+		MessageParser: MessageParser.New(),           // Auto-initialized
+		ErrorHandler:  ErrorHandler.NewErrorHandler(), // Auto-initialized
 	}
 }
 

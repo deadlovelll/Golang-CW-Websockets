@@ -1,0 +1,26 @@
+# Dependency directories and caches
+/vendor/
+/bin/
+/pkg/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go modules cache
+go.sum
+go.work
+go.work.sum
+
+# Build artifacts
+*.out
+*.test
+*.a
+
+# Editor and OS-specific files
+*.swp
+*.swo
+*.swn
+*.DS_Store
+*.vscode/
+.idea/

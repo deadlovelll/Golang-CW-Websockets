@@ -11,9 +11,9 @@ import (
 
 	"strconv"
 	"syscall"
+	basecontroller "user_search/controllers/base_controller"
 	getdatabasecontroller "user_search/get_database_controller"
-	basecontroller "user_search/modules/base_controller"
-	"user_search/modules/database"
+	"user_search/modules/database/database"
 
 	"github.com/gorilla/websocket"
 )

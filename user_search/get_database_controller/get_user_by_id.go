@@ -4,48 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"strconv"
 
 	basecontroller "user_search/modules/base_controller"
 
+	"user_search"
+
 	_ "github.com/lib/pq"
 )
 
-type GetDatabaseController struct {
+type UserController struct {
 	*basecontroller.BaseController
 }
 
-type MyResponse struct {
-	Status       string `json:"STATUS"`
-	PresignedURL string `json:"PRESIGNED_URL,omitempty"`
-}
-
-type Result struct {
-	Response *MyResponse
-	Error    string
-}
-
-func GetPresignedUrl(url string, responseCh chan<- *MyResponse, errorCh chan<- string) {
-	resp, err := http.Get(url)
-	if err != nil {
-		errorCh <- fmt.Sprintf("Error making request: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	var response MyResponse
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&response)
-	if err != nil {
-		errorCh <- fmt.Sprintf("Error decoding JSON: %v", err)
-		return
-	}
-
-	responseCh <- &response
-}
-
-func (gdb *GetDatabaseController) GetUsers(UserIdA int) ([]byte, error) {
+func (gdb *UserController) GetUsers(UserIdA int) ([]byte, error) {
 
 	db := gdb.Database.GetConnection()
 

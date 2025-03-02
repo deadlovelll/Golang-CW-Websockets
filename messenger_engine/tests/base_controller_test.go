@@ -1,4 +1,4 @@
-package basecontroller
+package tests
 
 import (
 	"os"

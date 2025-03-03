@@ -9,12 +9,24 @@ import (
 	"strconv"
 )
 
-// PlaceController handles database operations.
+// PlaceController handles operations related to retrieving place information from the database.
+//
+// Fields:
+//   - Database: A pointer to an sql.DB instance representing the database connection.
 type PlaceController struct {
-	Database *sql.DB // Adjust according to your actual Database connection struct
+	Database *sql.DB
 }
 
-// GetPlaceByName returns places filtered by name.
+// GetPlaceByName retrieves places based on a partial name match.
+//
+// It searches for places whose names contain the given query string (case-insensitive) and excludes drafts.
+//
+// Parameters:
+//   - placeName: A string representing part of the place name to search for.
+//
+// Returns:
+//   - []byte: A JSON-encoded list of place details matching the search criteria.
+//   - error: An error if the query execution or processing fails.
 func (gdb *PlaceController) GetPlaceByName(placeName string) ([]byte, error) {
 	query := `
 	SELECT 
@@ -40,7 +52,16 @@ func (gdb *PlaceController) GetPlaceByName(placeName string) ([]byte, error) {
 	return gdb.getPlaces(query, placeName)
 }
 
-// GetPlaceWithHashtag returns places filtered by hashtag in the description.
+// GetPlaceWithHashtag retrieves places containing a specified hashtag in the description.
+//
+// The function searches for hashtags within the `description` column and excludes drafts.
+//
+// Parameters:
+//   - hashtag: A string representing the hashtag to filter places.
+//
+// Returns:
+//   - []byte: A JSON-encoded list of places matching the search criteria.
+//   - error: An error if the query execution or processing fails.
 func (gdb *PlaceController) GetPlaceWithHashtag(hashtag string) ([]byte, error) {
 	query := `
 	SELECT 
@@ -65,8 +86,18 @@ func (gdb *PlaceController) GetPlaceWithHashtag(hashtag string) ([]byte, error) 
 	return gdb.getPlaces(query, hashtag)
 }
 
-// getPlaces executes the provided query, processes each row, retrieves the presigned URL,
-// and returns the result as JSON.
+// getPlaces executes a query to fetch place details and appends presigned media URLs.
+//
+// The function runs a database query, iterates over results, retrieves media URLs, and
+// returns a JSON-encoded list of places.
+//
+// Parameters:
+//   - query: A string containing the SQL query to execute.
+//   - arg: The argument value to use in the SQL query (e.g., place name or hashtag).
+//
+// Returns:
+//   - []byte: A JSON-encoded list of places.
+//   - error: An error if the query execution or JSON encoding fails.
 func (gdb *PlaceController) getPlaces(query string, arg interface{}) ([]byte, error) {
 	rows, err := gdb.Database.Query(query, arg)
 	if err != nil {
@@ -87,11 +118,13 @@ func (gdb *PlaceController) getPlaces(query string, arg interface{}) ([]byte, er
 			createdByUsername string
 		)
 
+		// Scan the row into variables.
 		if err := rows.Scan(&placeID, &placeName, &createdByID, &placeCommentCount, &placeLikesCount, &createdByUsername); err != nil {
 			log.Printf("Error scanning row: %v", err)
 			return nil, err
 		}
 
+		// Construct the place data.
 		place := map[string]interface{}{
 			"place_id":            placeID,
 			"place_name":          placeName,
@@ -101,20 +134,24 @@ func (gdb *PlaceController) getPlaces(query string, arg interface{}) ([]byte, er
 			"place_likes_count":   placeLikesCount,
 		}
 
+		// Fetch the presigned URL for place media.
 		urlString := fmt.Sprintf("http://127.0.0.1:8170?place_id=%s", strconv.Itoa(placeID))
 		if presignedResponse, err := utils.GetPresignedURL(urlString); err != nil {
 			log.Printf("Error retrieving presigned URL for place %d: %v", placeID, err)
 		} else {
 			place["places_media"] = presignedResponse.PresignedURL
 		}
+
 		results = append(results, place)
 	}
 
+	// Check for iteration errors.
 	if err := rows.Err(); err != nil {
 		log.Printf("Error iterating rows: %v", err)
 		return nil, err
 	}
 
+	// Convert results to JSON.
 	jsonData, err := json.Marshal(results)
 	if err != nil {
 		return nil, err

@@ -61,3 +61,7 @@ func (d *Database) CloseAll() {
 func (d *Database) ReleaseConnection() {
 	d.CloseAll()
 }
+
+func (d *Database) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	return d.db.Query(query, args...) // Encapsulates direct access to *sql.DB
+}

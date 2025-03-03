@@ -1,7 +1,8 @@
 package placecontroller
 
 import (
-	"database/sql"
+	"places_search/controllers/base_controller"
+	"places_search/modules/database/database"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,8 +14,16 @@ import (
 //
 // Fields:
 //   - Database: A pointer to an sql.DB instance representing the database connection.
+// PlaceController handles database operations and embeds BaseController for database access.
 type PlaceController struct {
-	Database *sql.DB
+	*basecontroller.BaseController
+}
+
+// NewPlaceController creates a new instance of PlaceController.
+func NewPlaceController(db *database.Database) *PlaceController {
+	return &PlaceController{
+		BaseController: &basecontroller.BaseController{Database: db},
+	}
 }
 
 // GetPlaceByName retrieves places based on a partial name match.
@@ -27,7 +36,7 @@ type PlaceController struct {
 // Returns:
 //   - []byte: A JSON-encoded list of place details matching the search criteria.
 //   - error: An error if the query execution or processing fails.
-func (gdb *PlaceController) GetPlaceByName(placeName string) ([]byte, error) {
+func (pc *PlaceController) GetPlaceByName(placeName string) ([]byte, error) {
 	query := `
 	SELECT 
 		base_place.id AS place_id, 
@@ -49,7 +58,7 @@ func (gdb *PlaceController) GetPlaceByName(placeName string) ([]byte, error) {
 	GROUP BY base_user.username, base_place.id, base_place.place_name, base_place.created_by_id;
 	`
 
-	return gdb.getPlaces(query, placeName)
+	return pc.getPlaces(query, placeName)
 }
 
 // GetPlaceWithHashtag retrieves places containing a specified hashtag in the description.
@@ -62,7 +71,7 @@ func (gdb *PlaceController) GetPlaceByName(placeName string) ([]byte, error) {
 // Returns:
 //   - []byte: A JSON-encoded list of places matching the search criteria.
 //   - error: An error if the query execution or processing fails.
-func (gdb *PlaceController) GetPlaceWithHashtag(hashtag string) ([]byte, error) {
+func (pc *PlaceController) GetPlaceWithHashtag(hashtag string) ([]byte, error) {
 	query := `
 	SELECT 
 		base_place.id AS place_id, 
@@ -83,7 +92,7 @@ func (gdb *PlaceController) GetPlaceWithHashtag(hashtag string) ([]byte, error) 
 	WHERE base_place.description LIKE '%' || $1 || '%' AND base_place.is_draft = false
 	GROUP BY base_user.username, base_place.id, base_place.place_name, base_place.created_by_id;
 	`
-	return gdb.getPlaces(query, hashtag)
+	return pc.getPlaces(query, hashtag)
 }
 
 // getPlaces executes a query to fetch place details and appends presigned media URLs.
@@ -98,8 +107,8 @@ func (gdb *PlaceController) GetPlaceWithHashtag(hashtag string) ([]byte, error) 
 // Returns:
 //   - []byte: A JSON-encoded list of places.
 //   - error: An error if the query execution or JSON encoding fails.
-func (gdb *PlaceController) getPlaces(query string, arg interface{}) ([]byte, error) {
-	rows, err := gdb.Database.Query(query, arg)
+func (pc *PlaceController) getPlaces(query string, arg interface{}) ([]byte, error) {
+	rows, err := pc.Database.Query(query, arg)
 	if err != nil {
 		log.Printf("Error executing query: %v", err)
 		return nil, err

@@ -10,35 +10,30 @@ import (
 	placecontroller "places_search/controllers/place_controller"
 )
 
-// Message represents the structure of incoming WebSocket JSON messages.
-//
-// Fields:
-//   - Query: A string representing the search query, which can be a place name or a hashtag.
+// Message represents the incoming WebSocket JSON message.
+// It contains a query string which can be a place name or a hashtag to search for places.
 type Message struct {
-	Query string `json:"query"`
+	Query string `json:"query"` // The search query sent by the client.
 }
 
-// WebSocketHandler manages WebSocket connections and processes messages.
-//
-// Fields:
-//   - upgrader: Handles upgrading HTTP connections to WebSocket.
-//   - pCtrl: A reference to PlaceController for handling place-related queries.
+// WebSocketHandler handles WebSocket connections and processes messages from clients.
 type WebSocketHandler struct {
-	upgrader websocket.Upgrader
-	pCtrl    *placecontroller.PlaceController
+	upgrader websocket.Upgrader // WebSocket upgrader to upgrade HTTP connection to WebSocket.
+	pCtrl    *placecontroller.PlaceController // A pointer to the PlaceController for querying place data.
 }
 
-// NewWebSocketHandler initializes and returns a new instance of WebSocketHandler.
+// NewWebSocketHandler creates and returns a new WebSocketHandler instance.
+// It initializes the WebSocket upgrader and sets up the place controller.
 //
 // Parameters:
-//   - pCtrl: A pointer to an instance of PlaceController, used for processing queries.
+//   - pCtrl: A pointer to the PlaceController that will handle place-related queries.
 //
 // Returns:
-//   - *WebSocketHandler: A pointer to the newly created WebSocketHandler.
+//   - A pointer to the newly created WebSocketHandler.
 func NewWebSocketHandler(pCtrl *placecontroller.PlaceController) *WebSocketHandler {
 	return &WebSocketHandler{
 		upgrader: websocket.Upgrader{
-			// Allow all origins for WebSocket connections.
+			// CheckOrigin allows all connections. This can be customized based on security needs.
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
@@ -47,15 +42,14 @@ func NewWebSocketHandler(pCtrl *placecontroller.PlaceController) *WebSocketHandl
 	}
 }
 
-// ServeHTTP handles WebSocket requests by upgrading the HTTP connection and processing incoming messages.
-//
-// This function continuously listens for messages from the client, processes them based on the query type,
-// and sends back the appropriate JSON response.
+// ServeHTTP upgrades the HTTP connection to a WebSocket and processes incoming messages.
+// This method listens for incoming WebSocket messages, processes them, and sends a response back to the client.
 //
 // Parameters:
-//   - w: http.ResponseWriter used for responding to the client.
-//   - r: *http.Request representing the incoming WebSocket request.
+//   - w: The HTTP response writer used to send the WebSocket response.
+//   - r: The HTTP request that initiated the WebSocket connection.
 func (wsh *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Upgrade the HTTP connection to a WebSocket connection.
 	conn, err := wsh.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Error upgrading to websocket: %v", err)
@@ -63,35 +57,39 @@ func (wsh *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	// Continuously listen for incoming messages from the WebSocket connection.
 	for {
-		// Read incoming WebSocket message.
+		// Read the next WebSocket message.
 		msgType, msgData, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("Error reading websocket message: %v", err)
 			break
 		}
 
-		// Parse the JSON message into the Message struct.
+		// Parse the incoming JSON message.
 		var msg Message
 		if err := json.Unmarshal(msgData, &msg); err != nil {
 			log.Printf("Error unmarshaling JSON: %v", err)
 			continue
 		}
 
-		// Determine query type: normal place name or hashtag search.
+		// Depending on the query, either search by place name or hashtag.
 		var jsonResponse []byte
 		if !strings.HasPrefix(msg.Query, "#") {
+			// If the query doesn't start with a hashtag, search for place by name.
 			jsonResponse, err = wsh.pCtrl.GetPlaceByName(msg.Query)
 		} else {
+			// If the query starts with a hashtag, search for places with that hashtag in the description.
 			jsonResponse, err = wsh.pCtrl.GetPlaceWithHashtag(msg.Query)
 		}
 
+		// Handle any error that occurs while fetching data for the query.
 		if err != nil {
 			log.Printf("Error fetching data for query %s: %v", msg.Query, err)
 			continue
 		}
 
-		// Send the response back to the WebSocket client.
+		// Send the JSON response back to the client.
 		if err := conn.WriteMessage(msgType, jsonResponse); err != nil {
 			log.Printf("Error sending websocket message: %v", err)
 			break

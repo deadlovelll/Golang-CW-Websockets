@@ -13,20 +13,21 @@ import (
 	"places_search/controllers/place_controller"
 )
 
+// main is the entry point of the application.
+// It initializes the database, controllers, and WebSocket handler,
+// then starts the HTTP server and listens for termination signals.
 func main() {
-	// Initialize the database pool.
-	dbPool := database() // Assuming you have a constructor.
-	dbPool.StartupEvent()
-	defer dbPool.ShutdownEvent()
+	// Initialize the database pool (singleton instance).
+	dbPool := database.GetDatabaseInstance()
 
-	// Initialize controllers.
-	baseCtrl := basecontroller.BaseController{Database: dbPool.GetDb()}
+	// Initialize controllers with the database instance.
+	baseCtrl := basecontroller.BaseController{Database: dbPool}
 	dbCtrl := placecontroller.PlaceController{BaseController: &baseCtrl}
 
-	// Set up the WebSocket handler.
+	// Set up the WebSocket handler with the PlaceController.
 	wsHandler := websockethandler.NewWebSocketHandler(&dbCtrl)
 
-	// Register the handler and start the HTTP server.
+	// Register the WebSocket handler and start the HTTP server.
 	http.Handle("/", wsHandler)
 	server := &http.Server{Addr: "localhost:8285"}
 
@@ -38,12 +39,12 @@ func main() {
 		}
 	}()
 
-	// Wait for termination signals.
+	// Listen for OS termination signals (SIGINT, SIGTERM) to handle graceful shutdown.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	// Gracefully shut down the server.
+	// Gracefully shut down the server when a termination signal is received.
 	if err := server.Close(); err != nil {
 		log.Printf("Error shutting down server: %v", err)
 	}

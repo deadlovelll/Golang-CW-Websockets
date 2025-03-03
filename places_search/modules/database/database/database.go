@@ -9,12 +9,17 @@ import (
 )
 
 // Database wraps a sql.DB connection pool along with its configuration.
+// It provides methods to establish the connection, retrieve the underlying
+// connection object, and gracefully close the connection pool.
 type Database struct {
 	db     *sql.DB
 	config *DatabaseConfig
 }
 
-// connect initializes the database connection using the provided configuration.
+// Connect initializes the database connection using the configuration provided
+// in the Database instance. It constructs a connection string from the config,
+// opens the connection, and verifies it with a ping. If any step fails, the
+// function logs the error and terminates the application.
 func (d *Database) Connect() {
 	connStr := fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=%s",
 		d.config.Host, d.config.User, d.config.Password, d.config.Name, d.config.SslMode)
@@ -33,12 +38,14 @@ func (d *Database) Connect() {
 	log.Println("Database connection established successfully")
 }
 
-// GetConnection returns the underlying *sql.DB connection.
+// GetConnection returns the underlying *sql.DB connection pool.
+// This connection can be used to perform database operations.
 func (d *Database) GetConnection() *sql.DB {
 	return d.db
 }
 
 // CloseAll gracefully closes the database connection pool.
+// It logs an error and terminates the application if closing fails.
 func (d *Database) CloseAll() {
 	if d.db != nil {
 		if err := d.db.Close(); err != nil {
@@ -50,6 +57,7 @@ func (d *Database) CloseAll() {
 }
 
 // ReleaseConnection is a convenience method that wraps CloseAll.
+// It is provided for semantic clarity when releasing the database connection.
 func (d *Database) ReleaseConnection() {
 	d.CloseAll()
 }

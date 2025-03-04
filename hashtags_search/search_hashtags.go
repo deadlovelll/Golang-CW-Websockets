@@ -1,116 +1,129 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	getdatabasecontroller "hashtags_search/get_database_controller"
 	basecontroller "hashtags_search/modules/base_controller"
 	"hashtags_search/modules/database"
 
-	"net/http"
-	"os"
-	"os/signal"
-
-	"syscall"
-
 	"github.com/gorilla/websocket"
 )
 
+// WebSocketHandler handles WebSocket connections and processes incoming messages.
 type WebSocketHandler struct {
 	upgrader websocket.Upgrader
-	Gcontrl  *getdatabasecontroller.GetDatabaseController
+	dbCtrl   *getdatabasecontroller.GetDatabaseController
 }
 
+// Message represents the JSON structure for incoming WebSocket messages.
 type Message struct {
 	Query string `json:"query"`
 }
 
+// ServeHTTP upgrades the HTTP connection to a WebSocket, then continuously listens
+// for and processes incoming messages. It uses the get-database controller to process
+// queries and sends back JSON responses.
 func (wsh *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Allow all origins (customize this for production use).
+	wsh.upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 
-	wsh.upgrader.CheckOrigin = func(r *http.Request) bool {
-		return true
-	}
-
-	c, err := wsh.upgrader.Upgrade(w, r, nil)
-
+	// Upgrade the HTTP connection to a WebSocket.
+	conn, err := wsh.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Printf("An error occured: %s", err)
+		log.Printf("WebSocket upgrade error: %v", err)
+		return
 	}
+	defer conn.Close()
 
+	// Process incoming messages in an infinite loop.
 	for {
-
-		messageType, message, err := c.ReadMessage()
+		messageType, message, err := conn.ReadMessage()
 		if err != nil {
-			fmt.Printf("Error reading message %s", err)
+			log.Printf("Error reading WebSocket message: %v", err)
 			break
 		}
 
-		// Разбор сообщения из JSON
+		// Parse the JSON message.
 		var msg Message
-		err = json.Unmarshal(message, &msg)
-		if err != nil {
-			fmt.Printf("Error parsing message JSON: %s", err)
+		if err := json.Unmarshal(message, &msg); err != nil {
+			log.Printf("Error parsing JSON message: %v", err)
 			continue
 		}
 
-		// Преобразуем UserId в целое число
-		Hashtag := msg.Query
+		// Use the query string as the hashtag.
+		hashtag := msg.Query
 
-		jsonData, err := wsh.Gcontrl.GetHashtags(Hashtag)
-
+		// Fetch data using the get-database controller.
+		jsonData, err := wsh.dbCtrl.GetHashtags(hashtag)
 		if err != nil {
-			fmt.Printf("Error fetching users by ID: %s", err)
+			log.Printf("Error fetching hashtags for query '%s': %v", hashtag, err)
 			return
 		}
-		// Process jsonData
-		fmt.Println(jsonData)
 
-		// Send the JSON response back to the client
-		err = c.WriteMessage(messageType, jsonData)
-		if err != nil {
-			fmt.Printf("Error sending message: %v", err)
+		// Log the processed query and response.
+		log.Printf("Received query: %s; Responding with: %s", hashtag, string(jsonData))
+
+		// Write the JSON response back to the client.
+		if err := conn.WriteMessage(messageType, jsonData); err != nil {
+			log.Printf("Error sending WebSocket message: %v", err)
 			break
 		}
 	}
-
-	defer c.Close()
 }
 
 func main() {
+	// Initialize the database pool.
+	dbPool := &database.DatabasePoolController{}
+	dbPool.StartupEvent()
+	// Ensure graceful shutdown of the DB pool.
+	defer dbPool.ShutdownEvent()
 
-	DBPool := &database.DatabasePoolController{}
-	DBPool.StartupEvent()
+	// Initialize the base controller and get-database controller.
+	baseCtrl := basecontroller.BaseController{Database: dbPool.GetDb()}
+	getDbCtrl := getdatabasecontroller.GetDatabaseController{BaseController: &baseCtrl}
 
-	BContrl := basecontroller.BaseController{Database: DBPool.GetDb()}
-	GContrl := getdatabasecontroller.GetDatabaseController{BaseController: &BContrl}
-
-	wsHandler := WebSocketHandler{
+	// Create a WebSocketHandler with the get-database controller.
+	wsHandler := &WebSocketHandler{
 		upgrader: websocket.Upgrader{},
-		Gcontrl:  &GContrl,
+		dbCtrl:   &getDbCtrl,
 	}
 
-	http.Handle("/", &wsHandler)
-	fmt.Println("Запуск сервера на http://localhost:8380")
+	// Register the WebSocketHandler and create an HTTP server.
+	http.Handle("/", wsHandler)
+	addr := "localhost:8380"
+	log.Printf("Starting server on http://%s", addr)
 
-	server := &http.Server{Addr: "localhost:8380"}
+	server := &http.Server{
+		Addr: addr,
+	}
 
+	// Run the HTTP server in a separate goroutine.
 	go func() {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("Ошибкка при запуске сервера: %s", err)
+			log.Fatalf("Server error: %v", err)
 		}
 	}()
 
+	// Set up channel to listen for interrupt or termination signals.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
 	<-quit
+	log.Println("Shutdown signal received.")
 
-	DBPool.ShutdownEvent()
-
-	// Корректное завершение работы сервера
-	if err := server.Close(); err != nil {
-		fmt.Printf("Ошибка при завершении работы сервера: %v", err)
+	// Create a context with timeout for graceful shutdown.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server shutdown error: %v", err)
 	}
 
-	fmt.Println("Сервер был корректно завершен.")
+	log.Println("Server gracefully stopped.")
 }

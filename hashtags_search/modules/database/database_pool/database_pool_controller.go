@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"messenger_engine/modules/database/database"
+	"hashtags_search/modules/database/database"
 )
 
 // DatabasePoolController manages the database pool and ensures
@@ -48,6 +48,6 @@ func (dp *DatabasePoolController) ShutdownEvent() {
 
 	if dp.Db != nil {
 		fmt.Println("Shutdown made successfully")
-		dp.Db.Close() // Close the database connection
+		dp.Db.CloseAll() // Close the database connection
 	}
 }

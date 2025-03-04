@@ -9,7 +9,7 @@ import (
 )
 
 type GetDatabaseController struct {
-	*basecontroller.BaseController
+	basecontroller.BaseController
 }
 
 type MyResponse struct {

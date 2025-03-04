@@ -1,7 +1,7 @@
 package basecontroller
 
 import (
-	"hashtags_search/modules/database"
+	"hashtags_search/modules/database/database"
 )
 
 type BaseController struct {

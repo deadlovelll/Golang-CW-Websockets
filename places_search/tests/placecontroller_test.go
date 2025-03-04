@@ -3,6 +3,7 @@ package tests
 import (
 	"testing"
 	"errors"
+	"database/sql"
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/assert"
@@ -10,38 +11,41 @@ import (
 	"places_search/modules/database/database"
 )
 
-// MockDatabase is a mock of the Database interface to simulate database interaction.
+// MockDatabase is a mock implementation of DatabaseInterface.
 type MockDatabase struct {
 	mock.Mock
 }
 
-// Query is a mocked method for executing a database query.
-func (m *MockDatabase) Query(query string, args ...interface{}) (database.Rows, error) {
-	// This will call the `Called` method from `mock.Mock` to record the method call.
-	args = m.Called(query, args)
-	return args.Get(0).(database.Rows), args.Error(1)
+// Query mocks the database query method.
+func (m *MockDatabase) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	argsCalled := m.Mock.Called(query, args...)
+	rows, _ := argsCalled.Get(0).(*sql.Rows) // ✅ Ensure type assertion works
+	return rows, argsCalled.Error(1)
 }
+
+// ✅ Ensure MockDatabase implements DatabaseInterface
+var _ database.DatabaseInterface = (*MockDatabase)(nil)
 
 // Mock Rows for simulating the rows returned by database query.
 type MockRows struct {
-	mock.Mock
+	Mock mock.Mock
 }
 
 // Next mocks the Next method of sql.Rows.
 func (r *MockRows) Next() bool {
-	args := r.Called()
+	args := r.Mock.Called()
 	return args.Bool(0)
 }
 
 // Scan mocks the Scan method of sql.Rows.
 func (r *MockRows) Scan(dest ...interface{}) error {
-	args := r.Called(dest)
+	args := r.Mock.Called(dest)
 	return args.Error(0)
 }
 
 // Close mocks the Close method of sql.Rows.
 func (r *MockRows) Close() error {
-	args := r.Called()
+	args := r.Mock.Called()
 	return args.Error(0)
 }
 
@@ -52,15 +56,15 @@ func TestGetPlaceByName(t *testing.T) {
 	mockRows := new(MockRows)
 
 	// Set up the mock behavior for database query.
-	mockDB.On("Query", mock.Anything, mock.Anything).Return(mockRows, nil)
+	mockDB.Mock.On("Query", mock.Anything, mock.Anything).Return(mockRows, nil)
 
 	// Set up mock behavior for rows.Next and rows.Scan.
-	mockRows.On("Next").Return(true).Once()
-	mockRows.On("Next").Return(false).Once()
-	mockRows.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockRows.Mock.On("Next").Return(true).Once()
+	mockRows.Mock.On("Next").Return(false).Once()
+	mockRows.Mock.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Create PlaceController with mock database.
-	pc := place_controller.NewPlaceController(mockDB)
+	pc := placecontroller.NewPlaceController(mockDB)
 
 	// Call the method to test.
 	placeName := "test"
@@ -71,8 +75,8 @@ func TestGetPlaceByName(t *testing.T) {
 	assert.NotNil(t, jsonResponse)
 
 	// Ensure all expectations were met
-	mockDB.AssertExpectations(t)
-	mockRows.AssertExpectations(t)
+	mockDB.Mock.AssertExpectations(t)
+	mockRows.Mock.AssertExpectations(t)
 }
 
 // TestGetPlaceByNameError tests the GetPlaceByName method when a query error occurs.
@@ -81,10 +85,10 @@ func TestGetPlaceByNameError(t *testing.T) {
 	mockDB := new(MockDatabase)
 
 	// Simulate a database query error
-	mockDB.On("Query", mock.Anything, mock.Anything).Return(nil, errors.New("query error"))
+	mockDB.Mock.On("Query", mock.Anything, mock.Anything).Return(nil, errors.New("query error"))
 
 	// Create PlaceController with mock database.
-	pc := place_controller.NewPlaceController(mockDB)
+	pc := placecontroller.NewPlaceController(mockDB)
 
 	// Call the method to test
 	placeName := "test"
@@ -95,7 +99,7 @@ func TestGetPlaceByNameError(t *testing.T) {
 	assert.Equal(t, "query error", err.Error())
 
 	// Ensure all expectations were met
-	mockDB.AssertExpectations(t)
+	mockDB.Mock.AssertExpectations(t)
 }
 
 // TestGetPlaceWithHashtag tests the GetPlaceWithHashtag method of PlaceController.
@@ -105,15 +109,15 @@ func TestGetPlaceWithHashtag(t *testing.T) {
 	mockRows := new(MockRows)
 
 	// Set up the mock behavior for database query.
-	mockDB.On("Query", mock.Anything, mock.Anything).Return(mockRows, nil)
+	mockDB.Mock.On("Query", mock.Anything, mock.Anything).Return(mockRows, nil)
 
 	// Set up mock behavior for rows.Next and rows.Scan.
-	mockRows.On("Next").Return(true).Once()
-	mockRows.On("Next").Return(false).Once()
-	mockRows.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockRows.Mock.On("Next").Return(true).Once()
+	mockRows.Mock.On("Next").Return(false).Once()
+	mockRows.Mock.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Create PlaceController with mock database.
-	pc := place_controller.NewPlaceController(mockDB)
+	pc := placecontroller.NewPlaceController(mockDB)
 
 	// Call the method to test.
 	hashtag := "#test"
@@ -124,8 +128,8 @@ func TestGetPlaceWithHashtag(t *testing.T) {
 	assert.NotNil(t, jsonResponse)
 
 	// Ensure all expectations were met
-	mockDB.AssertExpectations(t)
-	mockRows.AssertExpectations(t)
+	mockDB.Mock.AssertExpectations(t)
+	mockRows.Mock.AssertExpectations(t)
 }
 
 // TestGetPlaceWithHashtagError tests the GetPlaceWithHashtag method when a query error occurs.
@@ -134,10 +138,10 @@ func TestGetPlaceWithHashtagError(t *testing.T) {
 	mockDB := new(MockDatabase)
 
 	// Simulate a database query error
-	mockDB.On("Query", mock.Anything, mock.Anything).Return(nil, errors.New("query error"))
+	mockDB.Mock.On("Query", mock.Anything, mock.Anything).Return(nil, errors.New("query error"))
 
 	// Create PlaceController with mock database.
-	pc := place_controller.NewPlaceController(mockDB)
+	pc := placecontroller.NewPlaceController(mockDB)
 
 	// Call the method to test
 	hashtag := "#test"
@@ -148,5 +152,5 @@ func TestGetPlaceWithHashtagError(t *testing.T) {
 	assert.Equal(t, "query error", err.Error())
 
 	// Ensure all expectations were met
-	mockDB.AssertExpectations(t)
+	mockDB.Mock.AssertExpectations(t)
 }

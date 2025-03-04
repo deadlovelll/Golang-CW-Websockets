@@ -19,7 +19,7 @@ type Message struct {
 // WebSocketHandler handles WebSocket connections and processes messages from clients.
 type WebSocketHandler struct {
 	upgrader websocket.Upgrader // WebSocket upgrader to upgrade HTTP connection to WebSocket.
-	pCtrl    *placecontroller.PlaceController // A pointer to the PlaceController for querying place data.
+	pCtrl    placecontroller.PlaceControllerInterface // A pointer to the PlaceController for querying place data.
 }
 
 // NewWebSocketHandler creates and returns a new WebSocketHandler instance.
@@ -30,7 +30,7 @@ type WebSocketHandler struct {
 //
 // Returns:
 //   - A pointer to the newly created WebSocketHandler.
-func NewWebSocketHandler(pCtrl *placecontroller.PlaceController) *WebSocketHandler {
+func NewWebSocketHandler(pCtrl placecontroller.PlaceControllerInterface) *WebSocketHandler {
 	return &WebSocketHandler{
 		upgrader: websocket.Upgrader{
 			// CheckOrigin allows all connections. This can be customized based on security needs.

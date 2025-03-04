@@ -8,11 +8,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// DatabaseInterface defines the behavior for a database.
-type DatabaseInterface interface {
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-}
-
 // Database wraps a sql.DB connection pool along with its configuration.
 // It provides methods to establish the connection, retrieve the underlying
 // connection object, and gracefully close the connection pool.

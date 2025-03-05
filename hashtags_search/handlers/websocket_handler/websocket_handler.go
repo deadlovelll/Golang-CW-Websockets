@@ -1,4 +1,4 @@
-package websocket
+package websockethandler
 
 import (
 	"encoding/json"
@@ -6,27 +6,28 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"hashtags_search/controllers/get_database_controller"
+	"hashtags_search/controllers/hashtag_controller"
 )
-
-// WebSocketHandler manages WebSocket connections and message handling.
-type WebSocketHandler struct {
-	upgrader websocket.Upgrader
-	dbCtrl   *getdatabasecontroller.GetDatabaseController
-}
 
 // Message represents the structure of incoming WebSocket messages.
 type Message struct {
 	Query string `json:"query"`
 }
 
+// WebSocketHandler manages WebSocket connections and message handling.
+type WebSocketHandler struct {
+	upgrader websocket.Upgrader
+	dbCtrl   hashtagcontroller.HashtagProvider
+}
+
 // NewWebSocketHandler initializes a new WebSocket handler with the given database controller.
-func NewWebSocketHandler(dbCtrl *getdatabasecontroller.GetDatabaseController) *WebSocketHandler {
+func NewWebSocketHandler(dbCtrl hashtagcontroller.HashtagProvider) *WebSocketHandler {
 	return &WebSocketHandler{
 		upgrader: websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }},
 		dbCtrl:   dbCtrl,
 	}
 }
+
 
 // ServeHTTP upgrades an HTTP connection to a WebSocket and processes messages.
 func (wsh *WebSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

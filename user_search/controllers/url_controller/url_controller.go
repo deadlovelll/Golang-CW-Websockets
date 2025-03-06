@@ -8,6 +8,12 @@ import (
 	Response "user_search/models/presigned_url"
 )
 
+
+type UrlResponse struct {
+	Status       string `json:"STATUS"`
+	PresignedURL string `json:"PRESIGNED_URL,omitempty"`
+}
+
 // HttpPresignedUrlFetcher is responsible for fetching presigned URLs
 // using the net/http package.
 type HttpPresignedUrlFetcher struct{}

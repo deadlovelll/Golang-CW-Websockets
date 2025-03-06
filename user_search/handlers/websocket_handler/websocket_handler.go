@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	usercontroller "user_search/controllers/user_controller"
+
 	"github.com/gorilla/websocket"
-	"user_search/controllers/user_controller"
 )
 
 // Message represents an incoming message from the client.

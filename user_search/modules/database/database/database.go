@@ -12,8 +12,13 @@ import (
 // It provides methods to establish the connection, retrieve the underlying
 // connection object, and gracefully close the connection pool.
 type Database struct {
-	db     *sql.DB
+	Db     *sql.DB
 	config *DatabaseConfig
+}
+
+// NewDatabase initializes a new Database instance.
+func NewDatabase(db *sql.DB) *Database {
+	return &Database{Db: db}
 }
 
 // Connect initializes the database connection using the configuration provided
@@ -25,30 +30,30 @@ func (d *Database) Connect() {
 		d.config.Host, d.config.User, d.config.Password, d.config.Name, d.config.SslMode)
 
 	var err error
-	d.db, err = sql.Open("postgres", connStr)
+	d.Db, err = sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %v", err)
 	}
 
 	// Verify the connection with a ping.
-	if err := d.db.Ping(); err != nil {
+	if err := d.Db.Ping(); err != nil {
 		log.Fatalf("Error pinging the database: %v", err)
 	}
 
 	log.Println("Database connection established successfully")
 }
 
-// GetConnection returns the underlying *sql.DB connection pool.
+// GetConnection returns the underlying *sql.Db connection pool.
 // This connection can be used to perform database operations.
 func (d *Database) GetConnection() *sql.DB {
-	return d.db
+	return d.Db
 }
 
 // CloseAll gracefully closes the database connection pool.
 // It logs an error and terminates the application if closing fails.
 func (d *Database) CloseAll() {
-	if d.db != nil {
-		if err := d.db.Close(); err != nil {
+	if d.Db != nil {
+		if err := d.Db.Close(); err != nil {
 			log.Fatalf("Error closing the database: %v", err)
 		} else {
 			log.Println("Database connection closed successfully")
@@ -63,5 +68,5 @@ func (d *Database) ReleaseConnection() {
 }
 
 func (d *Database) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	return d.db.Query(query, args...) // Encapsulates direct access to *sql.DB
+	return d.Db.Query(query, args...) // Encapsulates direct access to *sql.Db
 }

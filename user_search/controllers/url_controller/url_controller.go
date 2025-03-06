@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	Response "messenger_engine/models/presigned_url"
+	Response "user_search/models/presigned_url"
 )
 
 // HttpPresignedUrlFetcher is responsible for fetching presigned URLs

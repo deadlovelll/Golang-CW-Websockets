@@ -1,5 +1,5 @@
 # Use the official Golang image for building
-FROM golang:1.21 as builder
+FROM golang:1.23 AS builder
 
 # Set environment variables for Go
 ENV CGO_ENABLED=0 \
@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN go build -o messenger ./messenger.go
+RUN go build -o searchhashtags ./search_hashtags.go
 
 # Use a minimal image for running the app
 FROM alpine:latest
@@ -32,10 +32,10 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the compiled binary from the builder stage
-COPY --from=builder /app/messenger .
+COPY --from=builder /app/searchhashtags .
 
 # Expose the application port
 EXPOSE 8380
 
 # Run the application
-CMD ["./search_hashtags"]
+CMD ["./searchhashtags"]

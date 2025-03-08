@@ -1,5 +1,5 @@
 # Use the official Golang image for building
-FROM golang:1.21 as builder
+FROM golang:1.23 AS builder
 
 # Set environment variables for Go
 ENV CGO_ENABLED=0 \
